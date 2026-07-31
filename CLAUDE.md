@@ -9,7 +9,7 @@
 2. `git status` — offene Änderungen?
 3. Bei Unsicherheit über den Bundle-Mechanismus (Abschnitt 3) zuerst lesen, bevor `public/index.html` angefasst wird
 
-> **Stand: Juli 2026** — 31 Playwright-Tests (pausiert, siehe Abschnitt 7), live auf Cloudflare Pages, inkl. Backend-Functions + KV. Content überarbeitet mit echten GoodLife-Referenzen (Abschnitt 9a).
+> **Stand: Juli 2026** — 31 Playwright-Tests (pausiert, siehe Abschnitt 7), live auf Cloudflare Pages, inkl. Backend-Functions + KV. Content überarbeitet mit echten GoodLife-Referenzen (Abschnitt 9a). `index.html` von 1,45 MB auf 507 KB verkleinert durch Manifest-Aufräumen (Abschnitt 9b) — vor jeder neuen Änderung an eingebetteten Assets dort nachlesen.
 
 ---
 
@@ -51,6 +51,7 @@ scrolly-verlage-landingpage/
 │   ├── datenschutz.html           Handgeschriebene statische Seite
 │   ├── favicon.svg / favicon.png  Favicon (SVG + PNG-Fallback)
 │   ├── og-image.png               Social-Sharing-Vorschaubild (1200×630)
+│   ├── _headers                   Cache-Control pro Pfad (Cloudflare-Pages-Konvention, siehe Abschnitt 9)
 │   └── js/
 │       ├── popup-banner.js        Eigenständiges Modul, siehe Abschnitt 4
 │       └── lead-capture.js        Kleiner Helfer: POST an /lead (fire-and-forget)
@@ -231,6 +232,8 @@ Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine
 | `functions/` unter `public/` ablegen | `functions/` MUSS am Repo-Root liegen (Cloudflare-Konvention) |
 | Echte Zugangsdaten/Secrets in Code, Tests oder Git committen | Secrets nur über `wrangler pages secret put`, lokale Tests nutzen separate Dummy-Credentials |
 | Honeypot-Feld mit `display:none` verstecken | `position:absolute; left:-9999px` + `tabindex="-1"` + `aria-hidden` (manche Bots ignorieren `display:none`) |
+| Bild-/Content-Referenzen im Template ändern/entfernen, ohne das alte Manifest-Asset aufzuräumen | Nach jeder Content-Änderung an Bildern/Fonts: `grep -c "<uuid>" public/index.html` prüfen — Treffer 1 = jetzt ungenutzt, Manifest-Eintrag löschen (Abschnitt 9b) |
+| `/js/*` in `public/_headers` mit langem `max-age`/`immutable` cachen | Kurzer Cache (`max-age=3600, must-revalidate`) — Dateien haben keine Hash-Namen, langes Caching würde Bearbeitungen erst spät ausliefern |
 
 ---
 
@@ -239,8 +242,77 @@ Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine
 - **Meta-Tags** (Title, Description, OG-Tags, Twitter Card) stehen im ÄUSSEREN `<head>` von `index.html` (nicht im Bundle-Template!) — Social-Media-Crawler führen kein JS aus und würden Tags innerhalb des Templates nie sehen.
 - `og-image.png` (1200×630) wurde per Playwright-Screenshot einer kleinen Design-HTML erzeugt (kein Bild-Generierungs-Tool nötig) — bei Textänderungen: HTML neu bauen, erneut screenshotten, `public/og-image.png` ersetzen.
 - `favicon.svg` ist eine Kopie des Bundler-Lade-Icons (Wiedererkennung), `favicon.png` ist der gerenderte Fallback für Kontexte ohne SVG-Favicon-Support.
-- **Performance-Realität:** `public/index.html` ist ~1,4 MB, weil Schriften/Bilder als Base64 inline eingebettet sind (Bundle-Format, siehe Abschnitt 3). Cloudflare komprimiert automatisch per Brotli, aber Base64-Binärdaten komprimieren kaum — die Kompression hilft vor allem beim HTML/CSS/JS-Anteil. Ein echter Fix (Assets extern hosten, Lazy-Loading) müsste im externen Design-Tool an der Quelle passieren, nicht am kompilierten Bundle. Gemessene Ladezeit (Mobile-Emulation, 2026-07-31): ~1,1s.
 - **Mobile-Fix (2026-07-31):** Promo-Banner blendet sich jetzt aus, sobald `#termin` sichtbar wird (siehe Abschnitt 4) — vorher verdeckte er auf schmalen Viewports das Formular.
+- **Cache-Control (`public/_headers`, Stand 2026-07-31):** `/images/*`, Favicons, `og-image.png` → `max-age=604800` (7 Tage). `/js/*` bewusst nur `max-age=3600, must-revalidate` — diese Dateien haben KEINE Hash-Dateinamen (kein Build-Schritt), ein Jahres-Cache würde Bearbeitungen an `popup-banner.js`/`lead-capture.js` erst nach Ablauf ausliefern. `index.html` + Legal-Seiten bleiben `max-age=0, must-revalidate` (ändern sich häufig, müssen immer frisch sein).
+
+---
+
+## 9b. Manifest-Asset-Optimierung (Stand 2026-07-31)
+
+`public/index.html` enthält (siehe Abschnitt 3) ein `<script type="__bundler/manifest">` — ein einzeiliges JSON-Objekt, das JEDES eingebettete Binär-Asset (Fonts, Bilder, vendorte JS-Libs) base64-kodiert als `{uuid: {mime, compressed, data}}` hält. Das Bootstrap-Script iteriert beim Laden **eager über ALLE Manifest-Keys** (`Object.keys(manifest).map(...)`, siehe die IIFE im äußeren `<head>`) und dekodiert/mintet für jeden Eintrag einen Blob — unabhängig davon, ob der Eintrag im Template überhaupt referenziert wird. Das heißt: **jeder ungenutzte Manifest-Eintrag kostet vollen Transfer UND vollen Decode-Aufwand auf jedem einzigen Seitenaufruf.**
+
+### Gefundene Situation (vor der Optimierung: 1,45 MB)
+
+| Asset-Typ | Anzahl | Format | Größe (Base64 im File) |
+|---|---|---|---|
+| Fonts (Poppins, 5 Schnitte) | 5 | TTF, gzip-komprimiert | ~477 KB |
+| Bilder (Galerie-Vorschauen) | 5 | JPEG/PNG, unkomprimiert | ~778 KB |
+| Vendor-JS (React, ReactDOM, App-Logik) | 3 | JS, gzip-komprimiert | ~87 KB |
+
+### Durchgeführte Optimierung → 507 KB (−65 %)
+
+1. **5 Bild-Assets komplett entfernt** — das waren die Vorschaubilder der ALTEN Fake-Galerie (Abschnitt 9a, Task 22 hat sie durch echte GoodLife-Screenshots in `public/images/` ersetzt). Die Manifest-Einträge blieben nach dem Copy-Umbau als **totes Gewicht** zurück (Occurrence-Check: UUID kam nur noch 1× im File vor — die Manifest-Definition selbst, keine Nutzung mehr im Template). **682 KB gespart**, ohne jede sichtbare Änderung.
+2. **5 Font-Assets: TTF → WOFF2** (via `fonttools ttLib.woff2 compress`) — WOFF2 nutzt Brotli-Kompression nativ, ist für dieselben Glyphen ca. 35-45 % kleiner als gzip-komprimiertes TTF. `compressed`-Flag im Manifest auf `false` gesetzt (WOFF2 nochmal zu gzippen bringt nichts, das Format ist bereits komprimiert). **136 KB gespart.**
+3. **`format("truetype")` → `format("woff2")`** in allen 5 `@font-face`-Deklarationen im Template nachgezogen (reiner Text-Hinweis für den Browser, aber sauber halten).
+
+### Wie man das bei künftigen neuen Assets wiederholt
+
+```bash
+# Vorbereitung (einmalig):
+pip3 install fonttools brotli   # WOFF2-Kompression
+brew install pngquant           # PNG verlustarm komprimieren
+# cjpeg/jpegtran kommen mit "brew install jpeg-turbo" (meist schon vorhanden)
+
+# 1. Manifest-Zeile extrahieren + als JSON parsen (Python), pro Asset:
+#    - base64 decode, ggf. gzip.decompress() wenn compressed:true
+#    - Datei rausschreiben, mit Endung passend zu meta['mime']
+
+# 2a. Fonts (TTF):
+fonttools ttLib.woff2 compress -o out.woff2 in.ttf
+# manifest[uuid]['mime'] = 'font/woff2'; compressed = False; data = base64(out.woff2)
+# + @font-face format("truetype") -> format("woff2") im Template ersetzen
+
+# 2b. PNG:
+pngquant --quality=70-90 --output out.png --force in.png
+
+# 2c. JPEG:
+djpeg in.jpg > tmp.ppm && cjpeg -quality 80 -optimize tmp.ppm > out.jpg
+
+# 3. IMMER vor dem Zurückschreiben prüfen, ob eine UUID noch verwendet wird:
+grep -c "<uuid>" public/index.html
+# Ergebnis 1 = nur die Manifest-Definition selbst = UNGENUTZT = kann komplett raus
+# Ergebnis 2+ = wird noch referenziert (Template, @font-face, o.ä.) = nur optimieren, nicht löschen
+
+# 4. Manifest-Zeile neu als JSON schreiben (json.dumps(..., separators=(',',':'))),
+#    Zeile 397 (oder wo auch immer __bundler/manifest aktuell liegt) ersetzen.
+
+# 5. IMMER validieren:
+python3 -c "
+import json
+for l in open('public/index.html', encoding='utf-8'):
+    if l.startswith('{\"'):   json.loads(l)   # Manifest
+    if l.startswith('\"<!DOCTYPE'): json.loads(l)  # Template
+"
+
+# 6. Visuell verifizieren (Playwright-Screenshot über echten Server, NICHT file://,
+#    sonst lösen /images/*-Pfade nicht auf):
+node node_modules/.bin/http-server public -p 4174 -s &
+# Playwright gegen http://localhost:4174/ screenshotten, dann Server killen
+```
+
+⚠️ **Vor jeder Manifest-Bearbeitung: `grep -c "<uuid>" public/index.html` prüfen.** Ein Treffer heißt orphaned (raus damit), zwei oder mehr heißt in Nutzung (nur komprimieren, Format ggf. anpassen — Mime-Type/Format-Hint synchron halten).
+
+⚠️ **Nie versehentlich Font- oder Bild-UUIDs löschen, die noch referenziert werden** — vorher IMMER die Occurrence-Probe (Schritt 3) machen, nicht raten.
 
 ---
 

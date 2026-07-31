@@ -1,0 +1,28 @@
+# Cache-Control für statische Assets — Cloudflare Pages liest diese Datei automatisch.
+# WICHTIG: Kein "immutable"/Jahres-Cache auf /js/*, da diese Dateien keine
+# Hash-Dateinamen haben (kein Build-Schritt) und regelmäßig bearbeitet werden —
+# ein zu langer Browser-Cache würde Updates erst nach Ablauf ausliefern.
+
+/images/*
+  Cache-Control: public, max-age=604800
+
+/js/*
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/favicon.svg
+  Cache-Control: public, max-age=604800
+
+/favicon.png
+  Cache-Control: public, max-age=604800
+
+/og-image.png
+  Cache-Control: public, max-age=604800
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/impressum.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/datenschutz.html
+  Cache-Control: public, max-age=0, must-revalidate
