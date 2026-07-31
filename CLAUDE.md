@@ -49,6 +49,8 @@ scrolly-verlage-landingpage/
 │   ├── index.html                 Haupt-Landingpage — KOMPILIERTES BUNDLE, siehe Abschnitt 3
 │   ├── impressum.html             Handgeschriebene statische Seite
 │   ├── datenschutz.html           Handgeschriebene statische Seite
+│   ├── favicon.svg / favicon.png  Favicon (SVG + PNG-Fallback)
+│   ├── og-image.png               Social-Sharing-Vorschaubild (1200×630)
 │   └── js/
 │       ├── popup-banner.js        Eigenständiges Modul, siehe Abschnitt 4
 │       └── lead-capture.js        Kleiner Helfer: POST an /lead (fire-and-forget)
@@ -127,6 +129,7 @@ Bisher so eingefügt: Footer-Links (Impressum/Datenschutz), Cloudflare-Web-Analy
 - Trigger: Scroll-Tiefe (`CONFIG.trigger.scrollPercent`, aktuell 35 %) — kein Delay-Timer, damit UX nicht aufdringlich ist und Tests deterministisch bleiben
 - Dismiss-Zustand landet in `localStorage` (`scrolly_promo_dismissed_at`), Frequency-Cap über `CONFIG.frequencyCapDays` (aktuell 7)
 - CTA verlinkt auf `#termin` (scrollt zum echten, funktionierenden Formular — siehe unten). Kein eigenes E-Mail-Feld im Banner, um kein zweites, paralleles Formular zu Pflegen.
+- Blendet sich automatisch aus, sobald `#termin` in den Viewport scrollt (IntersectionObserver) — sonst verdeckt der fixed-position-Banner auf schmalen Mobil-Viewports das echte Formular/den Submit-Button (beim Mobile-Check 2026-07-31 gefunden).
 - Test-Hook: `window.ScrollyPromoBanner._resetDismissed()` — nur für Playwright, kein Teil des Produktivverhaltens
 
 **`lead-capture.js` im Detail:**
@@ -229,7 +232,17 @@ Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine
 
 ---
 
-## 9. Offene Punkte (Stand Juli 2026)
+## 9. SEO & Performance
+
+- **Meta-Tags** (Title, Description, OG-Tags, Twitter Card) stehen im ÄUSSEREN `<head>` von `index.html` (nicht im Bundle-Template!) — Social-Media-Crawler führen kein JS aus und würden Tags innerhalb des Templates nie sehen.
+- `og-image.png` (1200×630) wurde per Playwright-Screenshot einer kleinen Design-HTML erzeugt (kein Bild-Generierungs-Tool nötig) — bei Textänderungen: HTML neu bauen, erneut screenshotten, `public/og-image.png` ersetzen.
+- `favicon.svg` ist eine Kopie des Bundler-Lade-Icons (Wiedererkennung), `favicon.png` ist der gerenderte Fallback für Kontexte ohne SVG-Favicon-Support.
+- **Performance-Realität:** `public/index.html` ist ~1,4 MB, weil Schriften/Bilder als Base64 inline eingebettet sind (Bundle-Format, siehe Abschnitt 3). Cloudflare komprimiert automatisch per Brotli, aber Base64-Binärdaten komprimieren kaum — die Kompression hilft vor allem beim HTML/CSS/JS-Anteil. Ein echter Fix (Assets extern hosten, Lazy-Loading) müsste im externen Design-Tool an der Quelle passieren, nicht am kompilierten Bundle. Gemessene Ladezeit (Mobile-Emulation, 2026-07-31): ~1,1s.
+- **Mobile-Fix (2026-07-31):** Promo-Banner blendet sich jetzt aus, sobald `#termin` sichtbar wird (siehe Abschnitt 4) — vorher verdeckte er auf schmalen Viewports das Formular.
+
+---
+
+## 10. Offene Punkte (Stand Juli 2026)
 
 Reihenfolge aus der ursprünglichen Planung für eine vollständige Marketing-Seite:
 
@@ -237,5 +250,6 @@ Reihenfolge aus der ursprünglichen Planung für eine vollständige Marketing-Se
 2. ✅ Analytics (Cloudflare Web Analytics)
 3. ✅ Popup/Banner
 4. ✅ Lead-Speicherung — `/lead` + `/leads-export` (CSV, Basic Auth), **bewusst ohne Pipedrive-Anbindung** in dieser Phase (Nutzerentscheidung 2026-07-31)
-5. 📋 **Pipedrive-Integration** — `functions/lead.js` um einen zusätzlichen API-Call an Pipedrive erweitern (Person/Lead anlegen). `datenschutz.html` Punkt 8 vorher aktualisieren (kündigt es bereits an). Pipedrive-API-Token als Cloudflare-Secret setzen (vom User selbst zu erzeugen, siehe Pipedrive-Kontoeinstellungen).
-6. 📋 Custom Domain (z. B. `scrolly.ppimedia.de`) — Zone `ppimedia.de` müsste zu Cloudflare hinzugefügt oder CNAME beim aktuellen DNS-Provider gesetzt werden.
+5. ✅ SEO-Grundausstattung (Meta-Title/Description, OG-Tags, Favicon) + Mobile-/Performance-Check (siehe Abschnitt 9)
+6. 📋 **Pipedrive-Integration** — `functions/lead.js` um einen zusätzlichen API-Call an Pipedrive erweitern (Person/Lead anlegen). `datenschutz.html` Punkt 8 vorher aktualisieren (kündigt es bereits an). Pipedrive-API-Token als Cloudflare-Secret setzen (vom User selbst zu erzeugen, siehe Pipedrive-Kontoeinstellungen).
+7. 📋 Custom Domain (z. B. `scrolly.ppimedia.de`) — Zone `ppimedia.de` müsste zu Cloudflare hinzugefügt oder CNAME beim aktuellen DNS-Provider gesetzt werden.

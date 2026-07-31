@@ -92,6 +92,23 @@
     requestAnimationFrame(function () {
       el.classList.add("is-visible");
     });
+
+    hideWhenTerminVisible(el);
+  }
+
+  // Verdeckt sonst auf schmalen Viewports das echte Formular/den Submit-Button
+  // (fixed-position Banner über #termin) — sobald der Nutzer dort ankommt,
+  // hat der Banner seinen Zweck erfüllt.
+  function hideWhenTerminVisible(el) {
+    var termin = document.getElementById("termin");
+    if (!termin || typeof IntersectionObserver === "undefined") return;
+    var io = new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting) {
+        hide(el);
+        io.disconnect();
+      }
+    }, { threshold: 0.15 });
+    io.observe(termin);
   }
 
   function scrollPercent() {

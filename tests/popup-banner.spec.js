@@ -47,6 +47,11 @@ test.describe('Promo-Banner — Inhalt & CTA', () => {
     const cta = banner.locator('a.cta');
     await expect(cta).toHaveAttribute('href', '#termin');
   });
+
+  test('blendet sich aus, sobald #termin sichtbar wird (verdeckt sonst mobil das Formular)', async ({ page }) => {
+    await page.locator('#termin').scrollIntoViewIfNeeded();
+    await expect(page.locator(BANNER)).toHaveCount(0, { timeout: 2000 });
+  });
 });
 
 test.describe('Promo-Banner — Dismiss & Frequency-Cap', () => {
