@@ -9,7 +9,7 @@
 2. `git status` — offene Änderungen?
 3. Bei Unsicherheit über den Bundle-Mechanismus (Abschnitt 3) zuerst lesen, bevor `public/index.html` angefasst wird
 
-> **Stand: Juli 2026** — 31 Playwright-Tests, live auf Cloudflare Pages, inkl. Backend-Functions + KV
+> **Stand: Juli 2026** — 31 Playwright-Tests (pausiert, siehe Abschnitt 7), live auf Cloudflare Pages, inkl. Backend-Functions + KV. Content überarbeitet mit echten GoodLife-Referenzen (Abschnitt 9a).
 
 ---
 
@@ -244,6 +244,25 @@ Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine
 
 ---
 
+## 9a. Content & Copy-Strategie (GoodLife-Case, Stand Juli 2026)
+
+Überarbeitung nach direktem User-Feedback („Text stimmt nicht", „Rechenbeispiel muss einfacher"). Ziel: reale, verifizierbare Belege statt Platzhalter, und Copy die zum Sales-Kontext (Verlags-Anzeigenverkauf) passt statt generischer Formulierungen.
+
+**GoodLife Magazin (`goodlife-magazin.de`) ist der einzige real genannte Referenzkunde** — nutzt Scrolly sowohl redaktionell (Rubrik STIL) als auch als Anzeigenformat (Kooperation mit Sub Zero). Kein zweiter Kunde wird namentlich erwähnt.
+
+| Sektion | Vorher | Nachher |
+|---|---|---|
+| Galerie (`#galerie`) | 5 Fake-Karten, verlinkt auf nicht-existente `scrlly.com`-URLs | 3 echte, live abrufbare Scrollys von GoodLife: Sub Zero (`view.scrolly.com/scrolly/e49e971f-...`), JAB Anstoetz (`.../a4fe67e4-...`), STIL (`.../a713dea6-...`). Thumbnails unter `public/images/goodlife-*.jpg` (per Playwright-Screenshot der echten Live-Seiten erzeugt) |
+| Referenzfall (pinke Sektion) | Anonymisierter „Ein Verlag hat..."-Text mit `data-count`-Zahlen-Animation (30.000 €) | Namentlich GoodLife Magazin, Fließtext statt Zahlen-Countup — beschreibt den tatsächlichen produktiven Einsatz (redaktionell + Anzeigenformat), kein Umsatzwert genannt (liegt nicht vor) |
+| Einsatzszenarien-Heading | „Drei Anlässe, mit Scrolly Umsatz zu machen." (unklarer Kontext) | „Vom ersten Kontakt zum festen Umsatzposten." + Intro, das den Sales-Team-Workflow benennt (Verkäufer baut den Scrolly aus Kundenmaterial, Redaktion muss nichts liefern) |
+| Rechenbeispiel-Widget je Szenario | Kassenbon-Optik: `receiptTag` + Zeilen-Liste (`lines[]`) mit Label/Wert-Paaren, Mono-Font, gestrichelte Trennlinien | Eine große Kennzahl (`total`) + ein einziger Fließtext-Satz (`summary`), der die Rechnung in Prosa zusammenfasst — auf einen Blick erfassbar statt Bon-artig zeilenweise zu lesen |
+
+⚠️ **Die „Belegte Wirkung"-Statistiken (84 %, 1:17, 3–5×, +40 %) und der 3.500-€-Listenpreis sind laut User real und bleiben unverändert** — nicht mit den (bewusst anonymisierten/generischen) Beispielrechnungen in den Einsatzszenarien verwechseln, die weiterhin klar als „Beispielrechnung, keine Zusage" gekennzeichnet sind.
+
+**JS-Datenstruktur (`scenarios`-Array im `__bundler/template`):** Jedes Szenario-Objekt hat jetzt `summary` (String, oft mit `fmt(price)`-Konkatenation für dynamische Jahrespreise) statt `receiptTag` + `lines[]`. Bei Änderungen am Rechenbeispiel-Widget: HTML-Template (`{{ s.summary }}`) und JS-Objekt synchron halten, sonst rendert ein leerer/undefined-Text.
+
+---
+
 ## 10. Offene Punkte (Stand Juli 2026)
 
 Reihenfolge aus der ursprünglichen Planung für eine vollständige Marketing-Seite:
@@ -253,5 +272,6 @@ Reihenfolge aus der ursprünglichen Planung für eine vollständige Marketing-Se
 3. ✅ Popup/Banner
 4. ✅ Lead-Speicherung — `/lead` + `/leads-export` (CSV, Basic Auth), **bewusst ohne Pipedrive-Anbindung** in dieser Phase (Nutzerentscheidung 2026-07-31)
 5. ✅ SEO-Grundausstattung (Meta-Title/Description, OG-Tags, Favicon) + Mobile-/Performance-Check (siehe Abschnitt 9)
-6. 📋 **Pipedrive-Integration** — `functions/lead.js` um einen zusätzlichen API-Call an Pipedrive erweitern (Person/Lead anlegen). `datenschutz.html` Punkt 8 vorher aktualisieren (kündigt es bereits an). Pipedrive-API-Token als Cloudflare-Secret setzen (vom User selbst zu erzeugen, siehe Pipedrive-Kontoeinstellungen).
-7. 📋 Custom Domain (z. B. `scrolly.ppimedia.de`) — Zone `ppimedia.de` müsste zu Cloudflare hinzugefügt oder CNAME beim aktuellen DNS-Provider gesetzt werden.
+6. ✅ Content-Überarbeitung mit echten GoodLife-Referenzen + vereinfachtem Rechenbeispiel-Widget (siehe Abschnitt 9a)
+7. 📋 **Pipedrive-Integration** — `functions/lead.js` um einen zusätzlichen API-Call an Pipedrive erweitern (Person/Lead anlegen). `datenschutz.html` Punkt 8 vorher aktualisieren (kündigt es bereits an). Pipedrive-API-Token als Cloudflare-Secret setzen (vom User selbst zu erzeugen, siehe Pipedrive-Kontoeinstellungen).
+8. 📋 Custom Domain (z. B. `scrolly.ppimedia.de`) — Zone `ppimedia.de` müsste zu Cloudflare hinzugefügt oder CNAME beim aktuellen DNS-Provider gesetzt werden.
