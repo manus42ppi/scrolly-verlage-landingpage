@@ -208,6 +208,7 @@ node node_modules/.bin/playwright test
 | `tests/popup-banner.spec.js` | Scroll-Trigger-Schwelle, Dismiss + Frequency-Cap, CTA-Link, Abwesenheit auf Legal-Seiten |
 | `tests/lead-capture.spec.js` | `/lead`-Validierung + Honeypot, `/leads-export`-Zugriffsschutz (401 ohne/mit falschen Credentials, 200 CSV mit korrekten), echte Formular-Übertragung inkl. Payload-Check |
 
+⚠️ **Test-Umfang ab 2026-07-31 bewusst reduziert (User-Vorgabe):** Für neue Features nur noch ein schlanker Smoke-Test statt Vollabdeckung — Happy Path + maximal 1-2 kritische Fälle (z. B. Security-relevantes wie Honeypot/Auth), keine erschöpfende Abdeckung jeder Variante mehr. Grund: Umsetzungsgeschwindigkeit war wichtiger als Testtiefe. Bestehende Tests bleiben unangetastet (kosten keine weitere Zeit).
 Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine Datei packen (würde Token-Kosten für spätere gezielte Änderungen erhöhen). Lokale KV-Testdaten landen in `.wrangler/state` (gitignored) und bleiben zwischen Testläufen erhalten — Tests verwenden deshalb pro Lauf eindeutige E-Mail-Adressen statt exakter Zählungen.
 
 ---
