@@ -11,9 +11,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npx http-server public -p 4173 -c-1 --silent',
+    // wrangler pages dev statt http-server, damit Functions (functions/lead.js,
+    // functions/leads-export.js) + eine lokal emulierte KV-Namespace mitgetestet werden.
+    command:
+      'npx wrangler pages dev public --port 4173 --compatibility-date=2026-07-31 ' +
+      '--kv=LEADS_KV -b LEADS_EXPORT_USER=test-export-user -b LEADS_EXPORT_PASSWORD=test-export-pass',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

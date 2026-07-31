@@ -17,14 +17,14 @@ test.describe('Impressum & Datenschutz — Erreichbarkeit', () => {
   test('Impressum-Link von der Startseite aus führt zur Impressum-Seite', async ({ page }) => {
     await page.goto('/index.html');
     await page.locator('a[href="/impressum.html"]').click();
-    await expect(page).toHaveURL(/\/impressum\.html$/);
+    await expect(page).toHaveURL(/\/impressum(\.html)?$/); // Cloudflare Pages entfernt .html serverseitig
     await expect(page.locator('h1')).toHaveText('Impressum');
   });
 
   test('Datenschutz-Link von der Startseite aus führt zur Datenschutzerklärung', async ({ page }) => {
     await page.goto('/index.html');
     await page.locator('a[href="/datenschutz.html"]').click();
-    await expect(page).toHaveURL(/\/datenschutz\.html$/);
+    await expect(page).toHaveURL(/\/datenschutz(\.html)?$/); // Cloudflare Pages entfernt .html serverseitig
     await expect(page.locator('h1')).toHaveText('Datenschutzerklärung');
   });
 
@@ -113,25 +113,6 @@ test.describe('Cloudflare Web Analytics — Beacon auf allen Seiten', () => {
   }
 });
 
-test.describe('Datenschutz-Regressionsschutz: keine unerwartete Datenübertragung', () => {
-  test('Ausfüllen der Demo-„Termin sichern"-Vorschau löst keinen Netzwerk-Request aus', async ({ page }) => {
-    await page.goto('/index.html');
-    // Seitenaufruf selbst darf den Web-Analytics-Beacon feuern (siehe Datenschutzerklärung Punkt 6) —
-    // relevant ist nur, ob das AUSFÜLLEN des Demo-Formulars zusätzliche Requests auslöst.
-    await page.waitForLoadState('networkidle');
-
-    const requestsAfterInteraction = [];
-    page.on('request', (req) => requestsAfterInteraction.push(req.url()));
-
-    await page.locator('#termin input[type="email"]').fill('test@beispiel.de');
-    await page.locator('#termin button[type="submit"]').click();
-
-    // Der Klick darf nur den lokalen "Danke"-Zustand zeigen, aber keine Daten irgendwohin senden.
-    await expect(page.locator('#termin')).toContainText('Danke');
-
-    expect(
-      requestsAfterInteraction,
-      `Das Ausfüllen/Absenden des Demo-Formulars hat unerwartete Requests ausgelöst: ${requestsAfterInteraction.join(', ')}`
-    ).toEqual([]);
-  });
-});
+// Hinweis: Das Termin-Formular überträgt seit der Lead-Speicherung (siehe CLAUDE.md)
+// absichtlich Daten an /lead. Der zugehörige Test dafür liegt in tests/lead-capture.spec.js
+// ("Absenden des Formulars sendet die Daten an /lead und zeigt weiterhin Danke").

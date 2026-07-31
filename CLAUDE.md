@@ -9,7 +9,7 @@
 2. `git status` — offene Änderungen?
 3. Bei Unsicherheit über den Bundle-Mechanismus (Abschnitt 3) zuerst lesen, bevor `public/index.html` angefasst wird
 
-> **Stand: Juli 2026** — 24 Playwright-Tests, live auf Cloudflare Pages
+> **Stand: Juli 2026** — 31 Playwright-Tests, live auf Cloudflare Pages, inkl. Backend-Functions + KV
 
 ---
 
@@ -25,6 +25,8 @@ Marketing-/Vertriebs-Landingpage für **Scrolly** (Scrollytelling-Produkt von pp
 | Build-Ausgabeverzeichnis | `public` (im Cloudflare-Dashboard gesetzt — **nicht** Repo-Root!) |
 | Custom Domain | noch keine (nur `*.pages.dev`) |
 | Analytics | Cloudflare Web Analytics (cookie-frei), Token `97476983e481409c9a299b270e527632` |
+| Backend | Cloudflare Pages Functions (`functions/`) + Workers KV `scrolly-leads-kv` (Binding `LEADS_KV`) |
+| Secrets | `LEADS_EXPORT_USER`, `LEADS_EXPORT_PASSWORD` (Basic Auth für CSV-Export, siehe Abschnitt 6) |
 
 ### Deployment-Mechanik
 
@@ -48,14 +50,21 @@ scrolly-verlage-landingpage/
 │   ├── impressum.html             Handgeschriebene statische Seite
 │   ├── datenschutz.html           Handgeschriebene statische Seite
 │   └── js/
-│       └── popup-banner.js        Eigenständiges Modul, siehe Abschnitt 4
+│       ├── popup-banner.js        Eigenständiges Modul, siehe Abschnitt 4
+│       └── lead-capture.js        Kleiner Helfer: POST an /lead (fire-and-forget)
+├── functions/                    ← Cloudflare Pages Functions, MUSS im Repo-Root liegen
+│   ├── lead.js                    POST /lead — Validierung, Honeypot, Speicherung in LEADS_KV
+│   └── leads-export.js            GET /leads-export — CSV-Export, Basic-Auth-geschützt
 ├── tests/
 │   ├── legal.spec.js              Impressum/Datenschutz/Analytics-Beacon
-│   └── popup-banner.spec.js       Promo-Banner-Modul
-├── playwright.config.js           webServer startet `http-server public`
+│   ├── popup-banner.spec.js       Promo-Banner-Modul
+│   └── lead-capture.spec.js       /lead + /leads-export + Formular-Integration
+├── playwright.config.js           webServer startet `wrangler pages dev` (Functions + lokale KV)
 ├── package.json
 └── README.md                      Kurzfassung für Menschen ohne Claude-Kontext
 ```
+
+⚠️ **Cloudflare-Pages-Functions-Konvention:** `functions/` liegt am Repo-Root, NICHT unter `public/` — unabhängig vom Build-Ausgabeverzeichnis. Cloudflare erkennt und deployt sie automatisch anhand des Verzeichnisnamens.
 
 ---
 
@@ -112,14 +121,24 @@ Bisher so eingefügt: Footer-Links (Impressum/Datenschutz), Cloudflare-Web-Analy
 | Modul | Datei | Zweck | Eingebunden in |
 |---|---|---|---|
 | Promo-Banner | `public/js/popup-banner.js` | Konfigurierbarer Scroll-getriggerter Banner mit Dismiss + Frequency-Cap | nur `index.html` |
+| Lead-Capture | `public/js/lead-capture.js` | Fire-and-forget-Helfer: `window.ScrollyLeadCapture.submitLead(data)` postet an `/lead` | nur `index.html` |
 
 **`popup-banner.js` im Detail:**
 - Trigger: Scroll-Tiefe (`CONFIG.trigger.scrollPercent`, aktuell 35 %) — kein Delay-Timer, damit UX nicht aufdringlich ist und Tests deterministisch bleiben
 - Dismiss-Zustand landet in `localStorage` (`scrolly_promo_dismissed_at`), Frequency-Cap über `CONFIG.frequencyCapDays` (aktuell 7)
-- CTA verlinkt aktuell auf `#termin` (die bestehende Demo-Sektion) — **sobald die Lead-Speicherung/Pipedrive-Integration steht, ist das der natürliche Erweiterungspunkt**: `CONFIG.ctaHref` durch ein eigenes E-Mail-Feld ersetzen, das an `/lead` postet
+- CTA verlinkt auf `#termin` (scrollt zum echten, funktionierenden Formular — siehe unten). Kein eigenes E-Mail-Feld im Banner, um kein zweites, paralleles Formular zu Pflegen.
 - Test-Hook: `window.ScrollyPromoBanner._resetDismissed()` — nur für Playwright, kein Teil des Produktivverhaltens
 
-Für ein neues Modul (z. B. künftiges Lead-Formular): neue Datei nach demselben Muster anlegen, eigene Tests in `tests/<modul>.spec.js`, in dieser Tabelle ergänzen.
+**`lead-capture.js` im Detail:**
+- Ein einziger Export: `submitLead(data)` → `fetch('/lead', { method: 'POST', body: JSON.stringify(data) })`, Fehler werden verschluckt (`.catch(() => {})`)
+- Bewusst fire-and-forget: darf die bestehende UX (sofortige „Danke"-Anzeige) nicht verzögern oder blockieren
+
+**Das „Termin sichern"-Formular (im Bundle, siehe Abschnitt 3) ist die EINZIGE echte Lead-Quelle:**
+Der bestehende Submit-Handler im `__bundler/template`-JSON wurde minimal erweitert (ein zusätzlicher `window.ScrollyLeadCapture.submitLead({...})`-Aufruf vor dem bestehenden `this.setState({ sent: true })`), OHNE die bestehende State-Logik/UX zu verändern. Ausgelesene Felder: `this.state.email` (bereits vorhanden), Firmenname per `e.target.querySelector('input[type=text]')` (unkontrolliertes Input-Feld, kein State-Binding), `this.state.slot`. Zusätzlich ein Honeypot-Feld (`input[name=website]`, per CSS off-screen positioniert) wurde in dasselbe Formular eingefügt.
+
+⚠️ Bei Änderungen an diesem Submit-Handler: **nur einzelne JS-Ausdrücke innerhalb der bestehenden Arrow-Function ergänzen**, nie die umgebende `sc-if`/State-Struktur anfassen. Beim Einfügen ausschließlich einfache Anführungszeichen (`'...'`) oder gar keine verwenden — jedes `"` im eingefügten Code müsste sonst als `\"` escaped werden (siehe Abschnitt 3).
+
+Für ein neues Modul: neue Datei nach demselben Muster anlegen, eigene Tests in `tests/<modul>.spec.js`, in dieser Tabelle ergänzen.
 
 ---
 
@@ -130,12 +149,44 @@ Für ein neues Modul (z. B. künftiges Lead-Formular): neue Datei nach demselben
   - Cloudflare-Hosting-Logfiles (Punkt 4)
   - keine Cookies (Punkt 5)
   - Cloudflare Web Analytics, cookie-frei (Punkt 6)
-  - das „Termin sichern"-Demo-Formular überträgt nachweislich keine Daten (Punkt 8) — das ist per Playwright-Test abgesichert (siehe Abschnitt 6)
-- **Wichtig bei künftigen Features mit Datenverarbeitung** (z. B. Lead-Formular → Pipedrive): `datenschutz.html` VOR Go-Live um einen entsprechenden Punkt ergänzen, nicht nachträglich.
+  - „Termin sichern"-Formular überträgt echte Daten (Punkt 8) — Rechtsgrundlage: Kontaktanfrage/vorvertragliche Maßnahme (Art. 6 Abs. 1 lit. b DSGVO), **kein** Newsletter, daher kein Double-Opt-in nötig
+- **Wichtig bei künftigen Features mit Datenverarbeitung** (z. B. Pipedrive-Anbindung): `datenschutz.html` VOR Go-Live um einen entsprechenden Punkt ergänzen, nicht nachträglich. Punkt 8 kündigt die geplante Pipedrive-Anbindung bereits an.
 
 ---
 
-## 6. Tests
+## 6. Lead-Speicherung (Backend)
+
+**Flow:** „Termin sichern"-Formular → `POST /lead` → Validierung + Honeypot-Check → Workers KV (`LEADS_KV`) → Export nur per `GET /leads-export` (Basic Auth).
+
+### `functions/lead.js`
+- Erwartet JSON-Body: `{ email, company?, slot?, source, website }` (`website` = Honeypot, muss leer sein)
+- Honeypot gefüllt → Antwort `{ ok: true }` **ohne** zu speichern (Bots sollen keinen Unterschied zu einer echten Annahme merken)
+- E-Mail-Format-Validierung, sonst HTTP 400
+- Speichert unter Key `lead:<ISO-Timestamp>:<uuid>` als JSON (inkl. User-Agent, Referer)
+
+### `functions/leads-export.js`
+- HTTP Basic Auth gegen die Secrets `LEADS_EXPORT_USER` / `LEADS_EXPORT_PASSWORD`
+- Ohne/mit falschen Zugangsdaten → 401 mit `WWW-Authenticate`-Header (Browser zeigt automatisch einen Login-Dialog)
+- Mit korrekten Zugangsdaten → CSV-Download aller Leads (paginiert über `kv.list()`, kein 1000-Key-Limit-Problem)
+- **Kein Admin-UI nötig** — URL im Browser öffnen, Zugangsdaten eingeben, fertig. Bewusste Entscheidung: siehe Session vom 2026-07-31, kein Pipedrive/Admin-Page in dieser Phase.
+
+### Secrets & Bindings setzen (bereits erledigt, hier als Referenz)
+```bash
+npx wrangler kv namespace create scrolly-leads-kv
+# Danach im Cloudflare-Dashboard: Pages-Projekt → Settings → Bindungen →
+# KV-Namespace hinzufügen → Variablenname LEADS_KV → scrolly-leads-kv auswählen
+# (kein wrangler-CLI-Befehl für Pages-KV-Bindings auf bestehenden Projekten)
+
+echo -n "<user>" | npx wrangler pages secret put LEADS_EXPORT_USER --project-name=scrolly-verlage-landingpage
+echo -n "<passwort>" | npx wrangler pages secret put LEADS_EXPORT_PASSWORD --project-name=scrolly-verlage-landingpage
+```
+
+### Geplante Erweiterung (nicht mehr Teil dieser Phase)
+Pipedrive-API-Anbindung in `functions/lead.js` (Lead direkt als Person/Deal anlegen) — siehe Abschnitt 8. `datenschutz.html` Punkt 8 vorher entsprechend ergänzen.
+
+---
+
+## 7. Tests
 
 ```bash
 npm install
@@ -143,18 +194,19 @@ node node_modules/.bin/playwright install chromium   # einmalig
 node node_modules/.bin/playwright test
 ```
 
-`playwright.config.js` startet automatisch `http-server public` auf Port 4173 — kein manueller Server nötig.
+`playwright.config.js` startet automatisch `wrangler pages dev public --kv=LEADS_KV ...` auf Port 4173 — testet Functions UND eine lokal emulierte KV-Instanz mit, kein manueller Server nötig. Test-Zugangsdaten für den Export sind fest im Config-Command hinterlegt (`test-export-user` / `test-export-pass`, nur lokal, keine echten Secrets).
 
 | Datei | Deckt ab |
 |---|---|
-| `tests/legal.spec.js` | Erreichbarkeit Impressum/Datenschutz, Pflichtangaben, Web-Analytics-Beacon auf allen Seiten, **Regressionsschutz**: Ausfüllen des Demo-Formulars darf keine zusätzlichen Netzwerk-Requests auslösen (Seitenaufruf selbst darf den Analytics-Beacon feuern) |
+| `tests/legal.spec.js` | Erreichbarkeit Impressum/Datenschutz, Pflichtangaben, Web-Analytics-Beacon auf allen Seiten |
 | `tests/popup-banner.spec.js` | Scroll-Trigger-Schwelle, Dismiss + Frequency-Cap, CTA-Link, Abwesenheit auf Legal-Seiten |
+| `tests/lead-capture.spec.js` | `/lead`-Validierung + Honeypot, `/leads-export`-Zugriffsschutz (401 ohne/mit falschen Credentials, 200 CSV mit korrekten), echte Formular-Übertragung inkl. Payload-Check |
 
-Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine Datei packen (würde Token-Kosten für spätere gezielte Änderungen erhöhen).
+Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine Datei packen (würde Token-Kosten für spätere gezielte Änderungen erhöhen). Lokale KV-Testdaten landen in `.wrangler/state` (gitignored) und bleiben zwischen Testläufen erhalten — Tests verwenden deshalb pro Lauf eindeutige E-Mail-Adressen statt exakter Zählungen.
 
 ---
 
-## 7. Kritische Regeln
+## 8. Kritische Regeln
 
 | ❌ Verboten | ✅ Korrekt |
 |---|---|
@@ -164,15 +216,19 @@ Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine
 | `.assetsignore` nutzen, um Dateien vom Cloudflare-Git-Deploy auszuschließen | Site-Content in `public/`, alles andere im Root belassen |
 | Datenschutzerklärung Datenverarbeitung beschreiben, die es (noch) nicht gibt | Nur den tatsächlichen Stand dokumentieren, bei neuen Features vorher aktualisieren |
 | Direkt auf `main` ohne Tests pushen | `node node_modules/.bin/playwright test` vor jedem Push |
+| `functions/` unter `public/` ablegen | `functions/` MUSS am Repo-Root liegen (Cloudflare-Konvention) |
+| Echte Zugangsdaten/Secrets in Code, Tests oder Git committen | Secrets nur über `wrangler pages secret put`, lokale Tests nutzen separate Dummy-Credentials |
+| Honeypot-Feld mit `display:none` verstecken | `position:absolute; left:-9999px` + `tabindex="-1"` + `aria-hidden` (manche Bots ignorieren `display:none`) |
 
 ---
 
-## 8. Offene Punkte (Stand Juli 2026)
+## 9. Offene Punkte (Stand Juli 2026)
 
 Reihenfolge aus der ursprünglichen Planung für eine vollständige Marketing-Seite:
 
 1. ✅ Rechtliches (Impressum, Datenschutz)
 2. ✅ Analytics (Cloudflare Web Analytics)
 3. ✅ Popup/Banner
-4. 📋 **Lead-Speicherung** — Cloudflare Function `/lead` → Pipedrive-API (Person/Lead anlegen), Spam-Schutz (Turnstile/Honeypot), optional KV-Backup. Natürlicher Anknüpfungspunkt: `popup-banner.js` um ein E-Mail-Feld erweitern statt nur auf `#termin` zu verlinken.
-5. 📋 Custom Domain (z. B. `scrolly.ppimedia.de`) — Zone `ppimedia.de` müsste zu Cloudflare hinzugefügt oder CNAME beim aktuellen DNS-Provider gesetzt werden.
+4. ✅ Lead-Speicherung — `/lead` + `/leads-export` (CSV, Basic Auth), **bewusst ohne Pipedrive-Anbindung** in dieser Phase (Nutzerentscheidung 2026-07-31)
+5. 📋 **Pipedrive-Integration** — `functions/lead.js` um einen zusätzlichen API-Call an Pipedrive erweitern (Person/Lead anlegen). `datenschutz.html` Punkt 8 vorher aktualisieren (kündigt es bereits an). Pipedrive-API-Token als Cloudflare-Secret setzen (vom User selbst zu erzeugen, siehe Pipedrive-Kontoeinstellungen).
+6. 📋 Custom Domain (z. B. `scrolly.ppimedia.de`) — Zone `ppimedia.de` müsste zu Cloudflare hinzugefügt oder CNAME beim aktuellen DNS-Provider gesetzt werden.
