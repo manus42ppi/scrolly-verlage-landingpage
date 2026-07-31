@@ -1,0 +1,13 @@
+{
+  "name": "scrolly-verlage-landingpage",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Statische Scrolly-Landingpage für Verlage (ppi Media)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.0",
+    "http-server": "^14.1.1"
+  }
+}
