@@ -94,14 +94,34 @@ test.describe('Datenschutzerklärung — Pflichtangaben', () => {
     expect(text).toContain('Löschung');
     expect(text).toContain('Widerspruch');
   });
+
+  test('legt den Einsatz von Cloudflare Web Analytics offen und beschreibt ihn als cookie-frei', async ({ page }) => {
+    const text = await page.locator('main').innerText();
+    expect(text).toContain('Cloudflare Web Analytics');
+    expect(text).toMatch(/ohne Cookies/i);
+  });
+});
+
+test.describe('Cloudflare Web Analytics — Beacon auf allen Seiten', () => {
+  for (const path of ['/index.html', '/impressum.html', '/datenschutz.html']) {
+    test(`${path} bindet den Web-Analytics-Beacon ein`, async ({ page }) => {
+      await page.goto(path);
+      const beacon = page.locator('script[data-cf-beacon]');
+      await expect(beacon).toHaveCount(1);
+      await expect(beacon).toHaveAttribute('src', 'https://static.cloudflareinsights.com/beacon.min.js');
+    });
+  }
 });
 
 test.describe('Datenschutz-Regressionsschutz: keine unerwartete Datenübertragung', () => {
   test('Ausfüllen der Demo-„Termin sichern"-Vorschau löst keinen Netzwerk-Request aus', async ({ page }) => {
-    const requests = [];
-    page.on('request', (req) => requests.push(req.url()));
-
     await page.goto('/index.html');
+    // Seitenaufruf selbst darf den Web-Analytics-Beacon feuern (siehe Datenschutzerklärung Punkt 6) —
+    // relevant ist nur, ob das AUSFÜLLEN des Demo-Formulars zusätzliche Requests auslöst.
+    await page.waitForLoadState('networkidle');
+
+    const requestsAfterInteraction = [];
+    page.on('request', (req) => requestsAfterInteraction.push(req.url()));
 
     await page.locator('#termin input[type="email"]').fill('test@beispiel.de');
     await page.locator('#termin button[type="submit"]').click();
@@ -109,9 +129,9 @@ test.describe('Datenschutz-Regressionsschutz: keine unerwartete Datenübertragun
     // Der Klick darf nur den lokalen "Danke"-Zustand zeigen, aber keine Daten irgendwohin senden.
     await expect(page.locator('#termin')).toContainText('Danke');
 
-    const unexpected = requests.filter(
-      (url) => !url.startsWith('http://localhost:4173') && !url.startsWith('data:') && !url.startsWith('blob:')
-    );
-    expect(unexpected, `Unerwartete externe Requests: ${unexpected.join(', ')}`).toEqual([]);
+    expect(
+      requestsAfterInteraction,
+      `Das Ausfüllen/Absenden des Demo-Formulars hat unerwartete Requests ausgelöst: ${requestsAfterInteraction.join(', ')}`
+    ).toEqual([]);
   });
 });
