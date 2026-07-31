@@ -212,6 +212,8 @@ node node_modules/.bin/playwright test
 | `tests/lead-capture.spec.js` | `/lead`-Validierung + Honeypot, `/leads-export`-Zugriffsschutz (401 ohne/mit falschen Credentials, 200 CSV mit korrekten), echte Formular-Übertragung inkl. Payload-Check |
 
 ⚠️ **Test-Umfang ab 2026-07-31 bewusst reduziert (User-Vorgabe):** Für neue Features nur noch ein schlanker Smoke-Test statt Vollabdeckung — Happy Path + maximal 1-2 kritische Fälle (z. B. Security-relevantes wie Honeypot/Auth), keine erschöpfende Abdeckung jeder Variante mehr. Grund: Umsetzungsgeschwindigkeit war wichtiger als Testtiefe. Bestehende Tests bleiben unangetastet (kosten keine weitere Zeit).
+
+🛑 **Tests vorübergehend PAUSIERT (User-Vorgabe 2026-07-31):** Bis der User explizit sagt, dass Tests wieder aktiv laufen sollen, NICHT mehr automatisch nach jeder Änderung `playwright test` ausführen (kostet zu viel Zeit im aktuellen Arbeitstempo) UND keine neuen Tests mehr für neue Features schreiben. Bestehende Test-Dateien bleiben unangetastet, damit sie sofort reaktiviert werden können. Änderungen weiterhin lokal per Browser/Screenshot visuell verifizieren, nur eben nicht per Playwright-Suite.
 Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine Datei packen (würde Token-Kosten für spätere gezielte Änderungen erhöhen). Lokale KV-Testdaten landen in `.wrangler/state` (gitignored) und bleiben zwischen Testläufen erhalten — Tests verwenden deshalb pro Lauf eindeutige E-Mail-Adressen statt exakter Zählungen.
 
 ---
