@@ -11,7 +11,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npx http-server . -p 4173 -c-1 --silent',
+    command: 'npx http-server public -p 4173 -c-1 --silent',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
   },
