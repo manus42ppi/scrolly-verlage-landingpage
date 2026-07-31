@@ -179,10 +179,16 @@ npx wrangler kv namespace create scrolly-leads-kv
 
 echo -n "<user>" | npx wrangler pages secret put LEADS_EXPORT_USER --project-name=scrolly-verlage-landingpage
 echo -n "<passwort>" | npx wrangler pages secret put LEADS_EXPORT_PASSWORD --project-name=scrolly-verlage-landingpage
+
+# Danach neu deployen — Secrets werden bei Git-verbundenen Pages-Projekten erst mit dem
+# NÄCHSTEN Deployment aktiv, nicht sofort auf der laufenden Production-Deployment:
+npx wrangler pages deploy public --project-name=scrolly-verlage-landingpage --branch=main --commit-dirty=true
 ```
 
+⚠️ **Beobachtete Cloudflare-Falle:** Nach `wrangler pages secret put` greift der neue Wert NICHT sofort auf der aktuell laufenden Production-Deployment — es braucht ein neues Deployment (z. B. `wrangler pages deploy`) UND danach nochmal 10–30 Sekunden Propagationszeit auf der `*.pages.dev`-Domain, bevor die neuen Zugangsdaten überall greifen. Direkt nach dem Setzen sofort testen führt zu falsch-negativen 401ern.
+
 ### Geplante Erweiterung (nicht mehr Teil dieser Phase)
-Pipedrive-API-Anbindung in `functions/lead.js` (Lead direkt als Person/Deal anlegen) — siehe Abschnitt 8. `datenschutz.html` Punkt 8 vorher entsprechend ergänzen.
+Pipedrive-API-Anbindung in `functions/lead.js` (Lead direkt als Person/Deal anlegen) — siehe Abschnitt 9. `datenschutz.html` Punkt 8 vorher entsprechend ergänzen.
 
 ---
 
