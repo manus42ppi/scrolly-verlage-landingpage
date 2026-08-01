@@ -333,6 +333,17 @@ node node_modules/.bin/http-server public -p 4174 -s &
 
 **JS-Datenstruktur (`scenarios`-Array im `__bundler/template`):** Jedes Szenario-Objekt hat jetzt `summary` (String, oft mit `fmt(price)`-Konkatenation für dynamische Jahrespreise) statt `receiptTag` + `lines[]`. Bei Änderungen am Rechenbeispiel-Widget: HTML-Template (`{{ s.summary }}`) und JS-Objekt synchron halten, sonst rendert ein leerer/undefined-Text.
 
+### Komplette Copy-Durchsicht (2026-07-31)
+
+Ganze Seite auf Zielgruppe/Sales-Kontext + idiomatisches Deutsch geprüft (nicht nur Einsatzszenarien). Gefundene und behobene Muster:
+
+- **Terminologie-Inkonsistenz:** „Sales-Team" (2×, Einsatzszenarien) vs. „Verkaufsteam" (Hero + Meta-Description) im selben Text — auf „Verkaufsteam" vereinheitlicht (war bereits die dominante Variante).
+- **CTA-Bruch im Funnel:** Header/Hero versprechen „Termin sichern", das Formular submittete aber mit „Termin anfragen" — anderer Verb im letzten Schritt kostet Conversion. Jetzt durchgängig „Termin sichern".
+- **Unidiomatische Wendungen:** „hält die Aufmerksamkeit oben" → „hoch"; „über welchen ... Weg" → „auf welchem ... Weg"; „sie sitzen ... richtig" → „sie passen ... an"; Genitiv-Stapelung „6 Mio. Bildern der Datenbank" → „der Datenbank mit 6 Mio. Bildern".
+- **Redundanz:** Referenzfall-Absatz wiederholte „echt/live" dreimal in einem Satz — auf eine Nennung gekürzt.
+
+⚠️ **Bei künftigen Copy-Änderungen: Terminologie-Grep vor dem Commit.** Z. B. `grep -o "Verkaufsteam\|Sales-Team\|Vertriebsteam" public/index.html` — verhindert, dass sich wieder zwei Bezeichnungen für dieselbe Rolle einschleichen. Gleiches Prinzip gilt für CTA-Verben (`grep -o "Termin sichern\|Termin anfragen\|Termin buchen"`).
+
 ---
 
 ## 10. Offene Punkte (Stand Juli 2026)
