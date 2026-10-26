@@ -5,7 +5,7 @@
 
 ## Session-Start Checkliste
 
-1. Branch prüfen: `git branch --show-current` → muss `main` sein (kein `develop` in diesem Projekt)
+1. Branch prüfen: `git branch --show-current` → muss `develop` sein (seit 26.10.2026, siehe „Branch-Strategie")
 2. `git status` — offene Änderungen?
 3. Bei Unsicherheit über den Bundle-Mechanismus (Abschnitt 3) zuerst lesen, bevor `public/index.html` angefasst wird
 
@@ -21,18 +21,29 @@ Marketing-/Vertriebs-Landingpage für **Scrolly** (Scrollytelling-Produkt von pp
 |---|---|
 | Live | https://scrolly-verlage-landingpage.pages.dev |
 | Repo | https://github.com/manus42ppi/scrolly-verlage-landingpage |
-| Hosting | Cloudflare Pages, Git-Integration auf Branch `main` (Auto-Deploy bei jedem Push) |
+| Vorschau | https://develop.scrolly-verlage-landingpage.pages.dev |
+| Hosting | Cloudflare Pages, Git-Integration: `main` = Produktion, `develop` = Vorschau (Auto-Deploy bei jedem Push) |
 | Build-Ausgabeverzeichnis | `public` (im Cloudflare-Dashboard gesetzt — **nicht** Repo-Root!) |
 | Custom Domain | noch keine (nur `*.pages.dev`) |
 | Analytics | Cloudflare Web Analytics (cookie-frei), Token `97476983e481409c9a299b270e527632` |
 | Backend | Cloudflare Pages Functions (`functions/`) + Workers KV `scrolly-leads-kv` (Binding `LEADS_KV`) |
 | Secrets | `LEADS_EXPORT_USER`, `LEADS_EXPORT_PASSWORD` (Basic Auth für CSV-Export, siehe Abschnitt 6) |
 
+### Branch-Strategie ⚠️ (seit 26.10.2026, einheitlich für alle Projekte)
+
+```
+develop  →  Vorschau-URL  – hier wird IMMER gearbeitet
+main     →  Produktion    – NUR bei explizitem "deployen" / "release"
+```
+
 ### Deployment-Mechanik
 
 ```bash
-git add -A && git commit -m "..." && git push origin main
-# → Cloudflare Pages baut automatisch, "Build output directory: public"
+git add -A && git commit -m "..." && git push origin develop
+# → Cloudflare Pages baut die Vorschau automatisch, "Build output directory: public"
+
+# Release (nur auf ausdrückliche Anfrage):
+git checkout main && git merge develop && git push origin main && git checkout develop
 ```
 
 Kein Build-Schritt (Framework-Voreinstellung: „Keine"). Alles unter `public/` wird 1:1 ausgeliefert, alles außerhalb (Tests, `package.json`, …) bleibt unveröffentlicht.
@@ -228,7 +239,7 @@ Neue Module bekommen eine eigene `tests/<modul>.spec.js` — nicht alles in eine
 | Marketing-/Conversion-Module auf `impressum.html`/`datenschutz.html` einbinden | Nur seitenneutrale Module (z. B. Analytics) auf Legal-Seiten |
 | `.assetsignore` nutzen, um Dateien vom Cloudflare-Git-Deploy auszuschließen | Site-Content in `public/`, alles andere im Root belassen |
 | Datenschutzerklärung Datenverarbeitung beschreiben, die es (noch) nicht gibt | Nur den tatsächlichen Stand dokumentieren, bei neuen Features vorher aktualisieren |
-| Direkt auf `main` ohne Tests pushen | `node node_modules/.bin/playwright test` vor jedem Push |
+| Direkt auf `main` pushen | Auf `develop` arbeiten, `node node_modules/.bin/playwright test` vor jedem Push, Release nur auf Anfrage |
 | `functions/` unter `public/` ablegen | `functions/` MUSS am Repo-Root liegen (Cloudflare-Konvention) |
 | Echte Zugangsdaten/Secrets in Code, Tests oder Git committen | Secrets nur über `wrangler pages secret put`, lokale Tests nutzen separate Dummy-Credentials |
 | Honeypot-Feld mit `display:none` verstecken | `position:absolute; left:-9999px` + `tabindex="-1"` + `aria-hidden` (manche Bots ignorieren `display:none`) |
